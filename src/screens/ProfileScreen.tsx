@@ -62,8 +62,7 @@ export default function ProfileScreen() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tituloProfesional: formData.tituloProfesional,
-          descripcionProfesional: formData.descripcionProfesional,
-          usuario: { id: user.id },
+          descripcionProfesional: formData.descripcionProfesional
         }),
       });
       if (res.ok) {
@@ -91,7 +90,6 @@ export default function ProfileScreen() {
         body: JSON.stringify({
           tituloProfesional: formData.tituloProfesional,
           descripcionProfesional: formData.descripcionProfesional,
-          usuario: { id: user.id },
         }),
       });
       if (res.ok) {

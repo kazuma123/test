@@ -1,6 +1,10 @@
-// src/navigation/MapsDrawer.tsx
-import { createDrawerNavigator, DrawerContentScrollView, DrawerItem } from '@react-navigation/drawer';
-import { View, Text, Image } from 'react-native';
+import {
+  createDrawerNavigator,
+  DrawerContentScrollView,
+  DrawerItem,
+  DrawerContentComponentProps,
+} from '@react-navigation/drawer';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -9,6 +13,7 @@ import ProfileScreen from '../screens/ProfileScreen';
 import PostsScreen from '../screens/PostsScreen';
 
 import { useWorkerSocket } from '../context/SocketContext';
+// import Icon from 'react-native-vector-icons/Ionicons';
 
 const Drawer = createDrawerNavigator();
 
@@ -24,55 +29,90 @@ interface User {
   email: string;
   foto_url?: string;
   roles: Role[];
+  rating?: number; // ⭐ reputación (ej: 4.7)
 }
 
-/* DRAWER PERSONALIZADO */
-function CustomDrawerContent({ navigation, user }: any) {
-  const isEmpresa = user?.roles?.some((r: Role) => r.id === 2);
+function RatingStars({ rating = 5 }: { rating?: number }) {
+  const fullStars = Math.floor(rating);
 
   return (
-    <DrawerContentScrollView contentContainerStyle={{ flex: 1 }}>
-      {/* HEADER */}
-      <View style={{ padding: 20, backgroundColor: '#000', alignItems: 'center' }}>
+    <View style={styles.starsContainer}>
+      {[...Array(5)].map((_, i) => (
+        <Text key={i} style={styles.star}>
+          {i < fullStars ? '★' : '☆'}
+        </Text>
+      ))}
+      <Text style={styles.ratingText}>{rating.toFixed(1)}</Text>
+    </View>
+  );
+}
+
+/* ===============================
+   DRAWER PERSONALIZADO
+================================ */
+function CustomDrawerContent({
+  navigation,
+  user,
+}: DrawerContentComponentProps & { user: User | null }) {
+  const isEmpresa = user?.roles?.some(r => r.id === 2);
+
+  return (
+    <DrawerContentScrollView contentContainerStyle={styles.container}>
+      {/* CARD HEADER */}
+      <View style={styles.profileCard}>
         <Image
           source={{
             uri:
               user?.foto_url ??
               'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y',
           }}
-          style={{ width: 80, height: 80, borderRadius: 40, marginBottom: 10 }}
+          style={styles.avatar}
         />
 
-        <Text style={{ color: '#fff', fontSize: 18, fontWeight: '600' }}>
-          {user ? user.nombre : 'Usuario'}
+        <Text style={styles.name}>
+          {user ? `${user.nombre} ${user.apellido}` : 'Usuario'}
         </Text>
+
+        <RatingStars rating={user?.rating ?? 4.8} />
+
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>
+            {isEmpresa ? 'Empresa' : 'Trabajador'}
+          </Text>
+        </View>
       </View>
 
-      {/* ITEMS */}
-      <View style={{ flex: 1, paddingTop: 10 }}>
-        <DrawerItem label="Mapa" onPress={() => navigation.navigate('Mapa')} />
+      {/* MENU */}
+      <View style={styles.menu}>
+        <DrawerItem
+          label="Mapa"
+          labelStyle={styles.label}
+          onPress={() => navigation.navigate('Mapa')}
+        />
 
         {isEmpresa && (
           <DrawerItem
             label="Mis publicaciones"
+            labelStyle={styles.label}
             onPress={() => navigation.navigate('MisPublicaciones')}
           />
         )}
 
         <DrawerItem
           label="Perfil profesional"
+          labelStyle={styles.label}
           onPress={() => navigation.navigate('Perfil')}
         />
       </View>
 
       {/* FOOTER */}
-      <View style={{ borderTopWidth: 1, borderTopColor: '#eee' }}>
+      <View style={styles.footer}>
         <DrawerItem
           label="Cerrar sesión"
-          labelStyle={{ color: 'red' }}
+          labelStyle={styles.logout}
           onPress={async () => {
             await AsyncStorage.removeItem('user');
-            navigation.replace('login');
+            navigation.navigate('login');
           }}
         />
       </View>
@@ -80,21 +120,22 @@ function CustomDrawerContent({ navigation, user }: any) {
   );
 }
 
-/* DRAWER PRINCIPAL */
+/* ===============================
+   DRAWER PRINCIPAL
+================================ */
 export default function MapsDrawer() {
   const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
     const loadUser = async () => {
-      const userString = await AsyncStorage.getItem('user');
-      if (userString) {
-        setUser(JSON.parse(userString));
+      const storedUser = await AsyncStorage.getItem('user');
+      if (storedUser) {
+        setUser(JSON.parse(storedUser));
       }
     };
     loadUser();
   }, []);
 
-  // 🔔 SOCKET SOLO PARA TRABAJADOR
   useWorkerSocket(user);
 
   return (
@@ -104,8 +145,9 @@ export default function MapsDrawer() {
       )}
       screenOptions={{
         headerShown: false,
-        drawerType: 'slide',
-        drawerStyle: { width: 280 },
+        drawerStyle: styles.drawer,
+        drawerType: 'front',
+        overlayColor: 'rgba(0, 0, 0, 0.3)',
       }}
     >
       <Drawer.Screen name="Mapa" component={MapsScreen} />
@@ -114,3 +156,87 @@ export default function MapsDrawer() {
     </Drawer.Navigator>
   );
 }
+
+/* ===============================
+   STYLES
+================================ */
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    paddingBottom: 12,
+  },
+  drawer: {
+    width: 300,
+    backgroundColor: '#F2F3F7',
+  },
+  profileCard: {
+    margin: 16,
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  avatar: {
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    marginBottom: 12,
+    borderWidth: 3,
+    borderColor: '#4F46E5', // indrive-like accent
+  },
+  name: {
+    fontSize: 18,
+    fontWeight: '700',
+    marginBottom: 6,
+    color: '#111827',
+  },
+  starsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  star: {
+    fontSize: 18,
+    color: '#FACC15',
+    marginHorizontal: 1,
+  },
+  ratingText: {
+    marginLeft: 6,
+    fontSize: 14,
+    color: '#374151',
+    fontWeight: '600',
+  },
+  badge: {
+    marginTop: 6,
+    backgroundColor: '#EEF2FF',
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  badgeText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#4F46E5',
+  },
+  menu: {
+    flex: 1,
+    paddingTop: 4,
+  },
+  label: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  footer: {
+    borderTopWidth: 1,
+    borderTopColor: '#E5E7EB',
+  },
+  logout: {
+    color: '#DC2626',
+    fontWeight: '600',
+  },
+});
