@@ -1,6 +1,6 @@
 // src/screens/MapsScreen.tsx
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { View, StyleSheet, Pressable, Text, TextInput, Platform, Alert, Image, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, Pressable, Text, TextInput, Platform, Alert, Image, TouchableOpacity, Modal } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import Geolocation, { GeoPosition } from 'react-native-geolocation-service';
 import { PERMISSIONS, request, RESULTS } from 'react-native-permissions';
@@ -9,6 +9,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import io from "socket.io-client";
 import { DrawerActions } from '@react-navigation/native';
 import { useLocation } from '../lib/LocationContext';
+import { fetchUserById } from '../services/user.service';
+import { indriveMapStyle } from '../styles/mapStyle';
+import Toast from 'react-native-toast-message';
 
 interface Role {
   id: number;
@@ -27,13 +30,15 @@ interface User {
 export default function MapsScreen({ navigation }: any) {
   const mapRef = useRef<MapView>(null);
   const lastSentRef = useRef<number>(0);
+  const [modalVisible, setModalVisible] = useState(false);
 
-  const { setLocation } = useLocation();
+  const { location, setLocation } = useLocation();
+
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [mapReady, setMapReady] = useState(false);
   const [position, setPosition] = useState<GeoPosition | null>(null);
 
-  const [nearby, setNearby] = useState<NearbyItem[]>([]);
+  const [nearby, setNearby] = useState<any[]>([]);
   const [loadingNearby, setLoadingNearby] = useState(false);
   const abortRef = useRef<{ aborted: boolean }>({ aborted: false });
 
@@ -41,6 +46,11 @@ export default function MapsScreen({ navigation }: any) {
   const firstFixDoneRef = useRef(false);
   const regionRef = useRef<Region | null>(null);
   const debounceTimerRef = useRef<any | null>(null);
+
+  const [selectedUser, setSelectedUser] = useState<any | null>(null);
+  const [loadingUserId, setLoadingUserId] = useState<number | null>(null);
+
+  const radioRef = useRef<number>(5);
 
   const initialRegion: Region = {
     latitude: -12.046374,
@@ -106,6 +116,30 @@ export default function MapsScreen({ navigation }: any) {
   } as const;
 
   useEffect(() => {
+    if (!user?.id) return;
+
+    const roleId = user?.roles?.[0]?.id;
+    if (roleId !== 2) return;
+
+    const payload = {
+      lat: location.lat,
+      lng: location.lng,
+      radio: location.radio,
+    };
+
+    console.log("📡 Enviando cercanos tiempo real:", payload);
+
+    socket.emit(
+      "buscarCercanosTiempoReal",
+      payload,
+      (resp: any) => {
+        console.log("👥 Cercanos RT:", resp);
+      }
+    );
+  }, [location.radio]); // 👈 SOLO CUANDO CAMBIA EL RADIO
+
+
+  useEffect(() => {
     if (hasPermission !== true || !mapReady) return;
 
     let canceled = false;
@@ -113,50 +147,48 @@ export default function MapsScreen({ navigation }: any) {
     watchIdRef.current = Geolocation.watchPosition(
       (pos) => {
         if (canceled) return;
+
         setPosition(pos);
 
-        // 👉 AQUÍ
-        setLocation({
+        setLocation((prev) => ({
+          ...prev,
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
-          radio: 5,
-        });
+        }));
 
-        // ⭐ SOLO ENVIAR SI HAN PASADO 5 SEGUNDOS
         const now = Date.now();
-        if (now - lastSentRef.current >= 5000) {
-          if (user?.id) {
-            const roleId = user?.roles?.[0]?.id;
-            if (!roleId) return;
 
-            switch (roleId) {
-              case 1:
-                socket.emit("enviarUbicacion", {
-                  userId: user.id,
-                  lat: pos.coords.latitude,
-                  lng: pos.coords.longitude,
-                });
-                break;
+        if (now - lastSentRef.current >= 5000 && user?.id) {
+          const roleId = user?.roles?.[0]?.id;
+          if (!roleId) return;
 
-              case 2:
-                socket.emit(
-                  "buscarCercanosTiempoReal",
-                  {
-                    lat: pos.coords.latitude,
-                    lng: pos.coords.longitude,
-                    radio: 5,
-                  },
-                  (resp: any) => {
-                    console.log("👥 Cercanos RT:", resp);
-                  }
-                );
-                break;
-            }
+          const payload = {
+            lat: pos.coords.latitude,
+            lng: pos.coords.longitude,
+            radio: radioRef.current,
+          };
 
+          switch (roleId) {
+            case 1:
+              socket.emit("enviarUbicacion", {
+                userId: user.id,
+                lat: pos.coords.latitude,
+                lng: pos.coords.longitude,
+              });
+              break;
+
+            case 2:
+              socket.emit(
+                "buscarCercanosTiempoReal",
+                payload,
+                (resp: any) => {
+                  console.log("👥 Cercanos RT:", resp);
+                }
+              );
+              break;
           }
 
           lastSentRef.current = now;
-          console.log("📡 Ubicación enviada al socket");
         }
 
         if (!firstFixDoneRef.current && mapRef.current) {
@@ -171,22 +203,11 @@ export default function MapsScreen({ navigation }: any) {
             },
             { duration: 600 }
           );
-
-          loadNearbyByCenter(
-            pos.coords.latitude,
-            pos.coords.longitude,
-            5
-          );
         }
       },
-      (err) => {
-        console.warn('watchPosition error', err);
-      },
+      (err) => console.warn('watchPosition error', err),
       geoOpts
     );
-
-
-
 
     return () => {
       canceled = true;
@@ -197,6 +218,41 @@ export default function MapsScreen({ navigation }: any) {
       Geolocation.stopObserving();
     };
   }, [hasPermission, mapReady]);
+
+  const getRadioByZoom = (latitudeDelta: number): number => {
+    if (latitudeDelta < 0.005) return 0.3;   // calle
+    if (latitudeDelta < 0.01) return 0.5;   // barrio
+    if (latitudeDelta < 0.02) return 1;     // distrito
+    if (latitudeDelta < 0.05) return 2;
+    if (latitudeDelta < 0.1) return 5;
+    if (latitudeDelta < 0.3) return 10;    // ciudad pequeña
+    if (latitudeDelta < 0.6) return 25;    // ciudad grande
+    if (latitudeDelta < 1.0) return 50;    // área metropolitana
+    return 80;                               // toda la ciudad / región
+  };
+
+
+
+  const handleLoadUser = async (userId: number) => {
+    try {
+      setModalVisible(true);
+      setLoadingUserId(userId);
+
+      const user = await fetchUserById(userId);
+
+      setSelectedUser({
+        id: userId,
+        ...user,
+      });
+    } catch (e) {
+      console.warn('Error cargando usuario', e);
+    } finally {
+      setLoadingUserId(null);
+    }
+  };
+
+
+
 
   useEffect(() => {
     // Conectar cuando se monta la pantalla
@@ -219,8 +275,21 @@ export default function MapsScreen({ navigation }: any) {
     };
 
     const handleCercanosActualizados = (lista: any) => {
-      console.log("👥 Cercanos actualizados:", lista);
+      setNearby(lista);
+      // console.log("👥 Cercanos actualizados:", lista);
     };
+    socket.on('connect', () => {
+      socket.emit('join', { userId: user?.id }); // ID REAL del trabajador
+    });
+
+    socket.on('notificacion', (data) => {
+      console.log('📩 NOTIFICACIÓN RECIBIDA:', data);
+      Toast.show({
+        type: 'success',
+        text1: 'Notificación',
+        text2: data.mensaje,
+      });
+    });
 
     socket.on("ubicacionActualizada", handleUbicacionActualizada);
     socket.on("cercanosActualizados", handleCercanosActualizados);
@@ -237,40 +306,20 @@ export default function MapsScreen({ navigation }: any) {
 
   const onMapReady = () => setMapReady(true);
 
-  // Servicio: pedir cercanos
-  const loadNearbyByCenter = useCallback(async (lat: number, lng: number, radioKm = 5) => {
-    // simple “cancelation” flag para evitar race conditions de estado
-    abortRef.current.aborted = false;
-    try {
-      setLoadingNearby(true);
-      const items = await fetchNearby(lat, lng, radioKm);
-      if (!abortRef.current.aborted) setNearby(items);
-    } catch (e) {
-      if (!abortRef.current.aborted) {
-        console.warn('fetchNearby error', e);
-        // Puedes mostrar toast si quieres
-      }
-    } finally {
-      if (!abortRef.current.aborted) setLoadingNearby(false);
-    }
-  }, []);
-
   // Debounce al mover el mapa
-  const onRegionChangeComplete = (r: Region) => {
-    regionRef.current = r;
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    debounceTimerRef.current = setTimeout(() => {
+  const onRegionChangeComplete = (region: Region) => {
+    const newRadio = getRadioByZoom(region.latitudeDelta);
 
-      // 👉 AQUÍ
-      setLocation({
-        lat: r.latitude,
-        lng: r.longitude,
-        radio: 5,
-      });
+    radioRef.current = newRadio;
 
-      loadNearbyByCenter(r.latitude, r.longitude, 5);
-    }, 600);
+    setLocation((prev) => ({
+      ...prev,
+      radio: newRadio,
+    }));
+
+    console.log('🔍 Radio actualizado:', newRadio);
   };
+
 
   // Recentrar en mi ubicación
   const onRecenter = () => {
@@ -292,8 +341,6 @@ export default function MapsScreen({ navigation }: any) {
       },
       { duration: 600 }
     );
-
-    loadNearbyByCenter(lat, lng, 5);
   };
 
 
@@ -323,6 +370,7 @@ export default function MapsScreen({ navigation }: any) {
         <Text style={{ color: '#fff', fontSize: 20 }}>☰</Text>
       </TouchableOpacity>
 
+      {/* MAPA */}
       {hasPermission === true && (
         <MapView
           ref={mapRef}
@@ -333,48 +381,87 @@ export default function MapsScreen({ navigation }: any) {
           onRegionChangeComplete={onRegionChangeComplete}
           showsUserLocation
           showsMyLocationButton={false}
+          customMapStyle={indriveMapStyle}
         >
-          {/* Marcadores de cercanos */}
-          {nearby.map((item) => {
-            // BACKEND: coordinates = [lng, lat]
-            const [lng, lat] = item.location.coordinates;
-            const title = `${item.name ?? ''}${item.last_name ? ' ' + item.last_name : ''}`;
-            const desc = item.description ?? '';
-
-            return (
-              <Marker
-                key={item._id}
-                coordinate={{ latitude: lat, longitude: lng }}
-                title={title}
-                description={desc}
-              >
-                {/* Icono circular con foto si existe */}
-                <View style={styles.pinWrap}>
-                  {item.photo_url ? (
-                    <Image
-                      source={{ uri: item.photo_url }}
-                      style={styles.pinImg}
-                      resizeMode="cover"
-                    />
-                  ) : (
-                    <View style={styles.pinFallback}>
-                      <Text style={styles.pinFallbackTxt}>
-                        {(item.name?.[0] ?? 'U').toUpperCase()}
-                      </Text>
-                    </View>
-                  )}
+          {nearby.map((item) => (
+            <Marker
+              key={item.userId}
+              coordinate={{
+                latitude: item.lat,
+                longitude: item.lng,
+              }}
+              onPress={() => handleLoadUser(item.userId)}
+            >
+              <View style={styles.pinWrap}>
+                <View style={styles.pinFallback}>
+                  <Text style={styles.pinFallbackTxt}>•</Text>
                 </View>
-              </Marker>
-            );
-          })}
+              </View>
+            </Marker>
+          ))}
         </MapView>
       )}
 
+      {/* BOTÓN CENTRAR */}
       <Pressable style={styles.fabSecondary} onPress={onRecenter}>
-        <Text style={styles.fabText}>{loadingNearby ? 'Cargando…' : 'Centrar'}</Text>
+        <Text style={styles.fabText}>
+          {loadingNearby ? 'Cargando…' : 'Centrar'}
+        </Text>
       </Pressable>
+
+      {/* 👇 AQUÍ VA EL MODAL */}
+      <Modal
+        visible={modalVisible}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            {loadingUserId ? (
+              <Text style={styles.modalLoading}>
+                Cargando usuario…
+              </Text>
+            ) : selectedUser ? (
+              <>
+                <Image
+                  source={{
+                    uri:
+                      selectedUser.foto_url ??
+                      'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y',
+                  }}
+                  style={styles.modalAvatar}
+                />
+
+                <Text style={styles.modalName}>
+                  {selectedUser.nombre} {selectedUser.apellido}
+                </Text>
+
+                <Text style={styles.modalText}>
+                  Email: {selectedUser.email}
+                </Text>
+                <Text style={styles.modalText}>
+                  Tipo: {selectedUser.descripcion}
+                </Text>
+
+                <Pressable
+                  style={styles.modalClose}
+                  onPress={() => setModalVisible(false)}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '700' }}>
+                    Cerrar
+                  </Text>
+                </Pressable>
+              </>
+            ) : (
+              <Text>No hay datos</Text>
+            )}
+          </View>
+        </View>
+      </Modal>
     </View>
   );
+
 }
 
 // Conexión global al socket
@@ -387,6 +474,34 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
 
   // Pin con foto circular
+  labelWrap: {
+    position: 'absolute',
+    bottom: 46,
+    backgroundColor: '#16A34A',
+    borderRadius: 14,
+    padding: 6,
+    minWidth: 120,
+    alignItems: 'center',
+  },
+
+  labelContent: {
+    alignItems: 'center',
+  },
+
+  labelImg: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    marginBottom: 4,
+  },
+
+  labelText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+
+
   pinWrap: {
     width: 38,
     height: 38,
@@ -477,5 +592,58 @@ const styles = StyleSheet.create({
     fontSize: 16,
   },
 
+
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+
+  modalContent: {
+    backgroundColor: '#fff',
+    padding: 20,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    minHeight: 250,
+  },
+
+  modalAvatar: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    alignSelf: 'center',
+    marginBottom: 10,
+  },
+
+  modalName: {
+    fontSize: 18,
+    fontWeight: '700',
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+
+  modalSubtitle: {
+    marginTop: 10,
+    fontWeight: '700',
+  },
+
+  modalText: {
+    fontSize: 14,
+    marginTop: 4,
+  },
+
+  modalLoading: {
+    textAlign: 'center',
+    fontSize: 16,
+    marginTop: 20,
+  },
+
+  modalClose: {
+    marginTop: 20,
+    backgroundColor: '#16A34A',
+    padding: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
 
 });

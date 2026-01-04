@@ -1,5 +1,5 @@
 // src/lib/LocationContext.tsx
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, Dispatch, SetStateAction, useContext, useState } from 'react';
 
 interface Location {
   lat: number;
@@ -9,8 +9,9 @@ interface Location {
 
 interface LocationContextType {
   location: Location;
-  setLocation: (loc: Location) => void;
+  setLocation: Dispatch<SetStateAction<Location>>;
 }
+
 
 const LocationContext = createContext<LocationContextType | null>(null);
 
