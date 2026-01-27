@@ -12,6 +12,7 @@ import { useLocation } from '../lib/LocationContext';
 import { fetchUserById } from '../services/user.service';
 import { indriveMapStyle } from '../styles/mapStyle';
 import Toast from 'react-native-toast-message';
+import axios from 'axios';
 
 interface Role {
   id: number;
@@ -33,6 +34,8 @@ export default function MapsScreen({ navigation }: any) {
   const [modalVisible, setModalVisible] = useState(false);
 
   const { location, setLocation } = useLocation();
+
+  const RADIOS = [2, 5, 10, 20, 50];
 
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -138,6 +141,31 @@ export default function MapsScreen({ navigation }: any) {
     );
   }, [location.radio]); // 👈 SOLO CUANDO CAMBIA EL RADIO
 
+  const postularTrabajador = async () => {
+    try {
+      const response = await axios.post(
+        'https://geolocalizacion-backend-wtnq.onrender.com/postulaciones',
+        {
+          publicacionId: 23,
+          trabajadorId: user?.id,
+        }
+      );
+
+      Toast.show({
+        type: 'success',
+        text1: 'Postulación enviada',
+        text2: 'La postulación se realizó correctamente',
+      });
+
+    } catch (error) {
+      console.error(error);
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: 'No se pudo realizar la postulación',
+      });
+    }
+  };
 
   useEffect(() => {
     if (hasPermission !== true || !mapReady) return;
@@ -219,19 +247,6 @@ export default function MapsScreen({ navigation }: any) {
     };
   }, [hasPermission, mapReady]);
 
-  const getRadioByZoom = (latitudeDelta: number): number => {
-    if (latitudeDelta < 0.005) return 0.3;   // calle
-    if (latitudeDelta < 0.01) return 0.5;   // barrio
-    if (latitudeDelta < 0.02) return 1;     // distrito
-    if (latitudeDelta < 0.05) return 2;
-    if (latitudeDelta < 0.1) return 5;
-    if (latitudeDelta < 0.3) return 10;    // ciudad pequeña
-    if (latitudeDelta < 0.6) return 25;    // ciudad grande
-    if (latitudeDelta < 1.0) return 50;    // área metropolitana
-    return 80;                               // toda la ciudad / región
-  };
-
-
 
   const handleLoadUser = async (userId: number) => {
     try {
@@ -283,11 +298,14 @@ export default function MapsScreen({ navigation }: any) {
     });
 
     socket.on('notificacion', (data) => {
-      console.log('📩 NOTIFICACIÓN RECIBIDA:', data);
       Toast.show({
         type: 'success',
-        text1: 'Notificación',
-        text2: data.mensaje,
+        text1: 'Confirmar postulación',
+        text2: 'Toca aquí para enviar la postulación',
+        onPress: () => {
+          Toast.hide();
+          postularTrabajador();
+        },
       });
     });
 
@@ -307,9 +325,7 @@ export default function MapsScreen({ navigation }: any) {
   const onMapReady = () => setMapReady(true);
 
   // Debounce al mover el mapa
-  const onRegionChangeComplete = (region: Region) => {
-    const newRadio = getRadioByZoom(region.latitudeDelta);
-
+  const handleSelectRadio = (newRadio: number) => {
     radioRef.current = newRadio;
 
     setLocation((prev) => ({
@@ -317,8 +333,9 @@ export default function MapsScreen({ navigation }: any) {
       radio: newRadio,
     }));
 
-    console.log('🔍 Radio actualizado:', newRadio);
+    console.log('📍 Radio seleccionado manualmente:', newRadio);
   };
+
 
 
   // Recentrar en mi ubicación
@@ -378,7 +395,6 @@ export default function MapsScreen({ navigation }: any) {
           style={StyleSheet.absoluteFillObject}
           initialRegion={initialRegion}
           onMapReady={onMapReady}
-          onRegionChangeComplete={onRegionChangeComplete}
           showsUserLocation
           showsMyLocationButton={false}
           customMapStyle={indriveMapStyle}
@@ -408,6 +424,29 @@ export default function MapsScreen({ navigation }: any) {
           {loadingNearby ? 'Cargando…' : 'Centrar'}
         </Text>
       </Pressable>
+
+      <View style={styles.radioSelector}>
+        {RADIOS.map((r) => (
+          <Pressable
+            key={r}
+            onPress={() => handleSelectRadio(r)}
+            style={[
+              styles.radioBtn,
+              location.radio === r && styles.radioBtnActive,
+            ]}
+          >
+            <Text
+              style={[
+                styles.radioTxt,
+                location.radio === r && styles.radioTxtActive,
+              ]}
+            >
+              {r} km
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
 
       {/* 👇 AQUÍ VA EL MODAL */}
       <Modal
@@ -644,6 +683,42 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 12,
     alignItems: 'center',
+  },
+
+
+
+
+
+  radioSelector: {
+    position: 'absolute',
+    bottom: 140,
+    right: 16,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 6,
+    elevation: 6,
+  },
+
+  radioBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    marginVertical: 4,
+    backgroundColor: '#f3f4f6',
+  },
+
+  radioBtnActive: {
+    backgroundColor: '#16A34A',
+  },
+
+  radioTxt: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+  },
+
+  radioTxtActive: {
+    color: '#fff',
   },
 
 });
