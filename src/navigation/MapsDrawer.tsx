@@ -13,6 +13,8 @@ import ProfileScreen from '../screens/ProfileScreen';
 import PostsScreen from '../screens/PostsScreen';
 
 import { useWorkerSocket } from '../context/SocketContext';
+import PostulacionesScreen from '../screens/PostulacionesScreen';
+import PostulacionesDetalleScreen from '../screens/PostulacionesDetalleScreen';
 // import Icon from 'react-native-vector-icons/Ionicons';
 
 const Drawer = createDrawerNavigator();
@@ -103,6 +105,12 @@ function CustomDrawerContent({
           labelStyle={styles.label}
           onPress={() => navigation.navigate('Perfil')}
         />
+
+        <DrawerItem
+          label="Postulaciones"
+          labelStyle={styles.label}
+          onPress={() => navigation.navigate('Postulaciones')}
+        />
       </View>
 
       {/* FOOTER */}
@@ -153,6 +161,8 @@ export default function MapsDrawer() {
       <Drawer.Screen name="Mapa" component={MapsScreen} />
       <Drawer.Screen name="MisPublicaciones" component={PostsScreen} />
       <Drawer.Screen name="Perfil" component={ProfileScreen} />
+      <Drawer.Screen name="Postulaciones" component={PostulacionesScreen} />
+      <Drawer.Screen name="PostulacionesDetalle" component={PostulacionesDetalleScreen} />
     </Drawer.Navigator>
   );
 }

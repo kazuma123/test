@@ -26,6 +26,7 @@ interface User {
   foto_url?: string;
   roles: Role[];
 }
+const RADIOS = [0.5, 1, 2, 5, 10]; // km
 
 export default function MapsScreen({ navigation }: any) {
   const mapRef = useRef<MapView>(null);
@@ -76,6 +77,18 @@ export default function MapsScreen({ navigation }: any) {
 
     loadUser();
   }, []);
+
+  const handleSelectRadio = (newRadio: number) => {
+    radioRef.current = newRadio;
+
+    setLocation((prev) => ({
+      ...prev,
+      radio: newRadio,
+    }));
+
+    console.log('📍 Radio seleccionado manualmente:', newRadio);
+  };
+
 
   const askPermission = async (): Promise<boolean> => {
     const perm =
@@ -306,21 +319,6 @@ export default function MapsScreen({ navigation }: any) {
 
   const onMapReady = () => setMapReady(true);
 
-  // Debounce al mover el mapa
-  const onRegionChangeComplete = (region: Region) => {
-    const newRadio = getRadioByZoom(region.latitudeDelta);
-
-    radioRef.current = newRadio;
-
-    setLocation((prev) => ({
-      ...prev,
-      radio: newRadio,
-    }));
-
-    console.log('🔍 Radio actualizado:', newRadio);
-  };
-
-
   // Recentrar en mi ubicación
   const onRecenter = () => {
     if (!mapRef.current || !position) return;
@@ -352,6 +350,37 @@ export default function MapsScreen({ navigation }: any) {
     };
   }, []);
 
+  const enviarPostulacion = async (userId: number) => {
+    try {
+      if (!user?.id) {
+        Alert.alert('Error', 'Usuario no autenticado');
+        return;
+      }
+
+      setLoadingUserId(userId);
+
+      socket.emit('enviarPostulacion', {
+        trabajadorId: user.id,
+        usuarioId: userId,
+      }, (response: any) => {
+        if (response?.success) {
+          Toast.show({
+            type: 'success',
+            text1: '¡Postulación enviada!',
+            text2: 'El usuario ha recibido tu solicitud.',
+          });
+        } else {
+          Alert.alert('Error', response?.message || 'No se pudo enviar la postulación');
+        }
+      });
+    } catch (error) {
+      console.error('Error enviando postulación:', error);
+      Alert.alert('Error', 'Ocurrió un error al enviar la postulación');
+    } finally {
+      setLoadingUserId(null);
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* BOTÓN MENÚ */}
@@ -378,7 +407,6 @@ export default function MapsScreen({ navigation }: any) {
           style={StyleSheet.absoluteFillObject}
           initialRegion={initialRegion}
           onMapReady={onMapReady}
-          onRegionChangeComplete={onRegionChangeComplete}
           showsUserLocation
           showsMyLocationButton={false}
           customMapStyle={indriveMapStyle}
@@ -408,6 +436,30 @@ export default function MapsScreen({ navigation }: any) {
           {loadingNearby ? 'Cargando…' : 'Centrar'}
         </Text>
       </Pressable>
+
+      {/* BOTÓN RADIO */}
+      <View style={styles.radioFab}>
+        {RADIOS.map((r) => (
+          <Pressable
+            key={r}
+            onPress={() => handleSelectRadio(r)}
+            style={[
+              styles.radioBtn,
+              location.radio === r && styles.radioBtnActive,
+            ]}
+          >
+            <Text
+              style={[
+                styles.radioTxt,
+                location.radio === r && styles.radioTxtActive,
+              ]}
+            >
+              {r} km
+            </Text>
+          </Pressable>
+        ))}
+      </View>
+
 
       {/* 👇 AQUÍ VA EL MODAL */}
       <Modal
@@ -446,10 +498,13 @@ export default function MapsScreen({ navigation }: any) {
 
                 <Pressable
                   style={styles.modalClose}
-                  onPress={() => setModalVisible(false)}
+                  onPress={() => {
+                    setModalVisible(false);
+                    enviarPostulacion(selectedUser.id);
+                  }}
                 >
                   <Text style={{ color: '#fff', fontWeight: '700' }}>
-                    Cerrar
+                    Postular
                   </Text>
                 </Pressable>
               </>
@@ -460,6 +515,7 @@ export default function MapsScreen({ navigation }: any) {
         </View>
       </Modal>
     </View>
+
   );
 
 }
@@ -645,5 +701,39 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
   },
+
+
+  radioFab: {
+  position: 'absolute',
+  right: 16,
+  bottom: 140, // encima del botón "Centrar"
+  backgroundColor: '#ffffff',
+  borderRadius: 16,
+  padding: 6,
+  elevation: 6,
+},
+
+radioBtn: {
+  paddingVertical: 8,
+  paddingHorizontal: 14,
+  borderRadius: 10,
+  marginVertical: 4,
+  backgroundColor: '#f3f4f6',
+},
+
+radioBtnActive: {
+  backgroundColor: '#16A34A',
+},
+
+radioTxt: {
+  fontSize: 13,
+  fontWeight: '600',
+  color: '#374151',
+},
+
+radioTxtActive: {
+  color: '#ffffff',
+},
+
 
 });
