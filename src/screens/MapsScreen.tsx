@@ -28,14 +28,14 @@ interface User {
   roles: Role[];
 }
 const API_BASE = 'https://geolocalizacion-backend-wtnq.onrender.com';
+const RADIOS = [0.5, 1, 2, 5, 10]; // km
+
 export default function MapsScreen({ navigation }: any) {
   const mapRef = useRef<MapView>(null);
   const lastSentRef = useRef<number>(0);
   const [modalVisible, setModalVisible] = useState(false);
 
   const { location, setLocation } = useLocation();
-
-  const RADIOS = [2, 5, 10, 20, 50];
 
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -95,6 +95,18 @@ export default function MapsScreen({ navigation }: any) {
 
     loadUserAndPerfil();
   }, []);
+
+  const handleSelectRadio = (newRadio: number) => {
+    radioRef.current = newRadio;
+
+    setLocation((prev) => ({
+      ...prev,
+      radio: newRadio,
+    }));
+
+    console.log('📍 Radio seleccionado manualmente:', newRadio);
+  };
+
 
   const askPermission = async (): Promise<boolean> => {
     const perm =
@@ -157,31 +169,6 @@ export default function MapsScreen({ navigation }: any) {
     );
   }, [location.radio]); // 👈 SOLO CUANDO CAMBIA EL RADIO
 
-  const postularTrabajador = async () => {
-    try {
-      const response = await axios.post(
-        'https://geolocalizacion-backend-wtnq.onrender.com/postulaciones',
-        {
-          publicacionId: 23,
-          trabajadorId: user?.id,
-        }
-      );
-
-      Toast.show({
-        type: 'success',
-        text1: 'Postulación enviada',
-        text2: 'La postulación se realizó correctamente',
-      });
-
-    } catch (error) {
-      console.error(error);
-      Toast.show({
-        type: 'error',
-        text1: 'Error',
-        text2: 'No se pudo realizar la postulación',
-      });
-    }
-  };
 
   useEffect(() => {
     if (hasPermission !== true || !mapReady) return;
@@ -265,6 +252,19 @@ export default function MapsScreen({ navigation }: any) {
     };
   }, [hasPermission, mapReady]);
 
+  const getRadioByZoom = (latitudeDelta: number): number => {
+    if (latitudeDelta < 0.005) return 0.3;   // calle
+    if (latitudeDelta < 0.01) return 0.5;   // barrio
+    if (latitudeDelta < 0.02) return 1;     // distrito
+    if (latitudeDelta < 0.05) return 2;
+    if (latitudeDelta < 0.1) return 5;
+    if (latitudeDelta < 0.3) return 10;    // ciudad pequeña
+    if (latitudeDelta < 0.6) return 25;    // ciudad grande
+    if (latitudeDelta < 1.0) return 50;    // área metropolitana
+    return 80;                               // toda la ciudad / región
+  };
+
+
 
   const handleLoadUser = async (userId: number) => {
     try {
@@ -316,14 +316,11 @@ export default function MapsScreen({ navigation }: any) {
     });
 
     socket.on('notificacion', (data) => {
+      console.log('📩 NOTIFICACIÓN RECIBIDA:', data);
       Toast.show({
         type: 'success',
-        text1: 'Confirmar postulación',
-        text2: 'Toca aquí para enviar la postulación',
-        onPress: () => {
-          Toast.hide();
-          postularTrabajador();
-        },
+        text1: 'Notificación',
+        text2: data.mensaje,
       });
     });
 
@@ -341,20 +338,6 @@ export default function MapsScreen({ navigation }: any) {
 
 
   const onMapReady = () => setMapReady(true);
-
-  // Debounce al mover el mapa
-  const handleSelectRadio = (newRadio: number) => {
-    radioRef.current = newRadio;
-
-    setLocation((prev) => ({
-      ...prev,
-      radio: newRadio,
-    }));
-
-    console.log('📍 Radio seleccionado manualmente:', newRadio);
-  };
-
-
 
   // Recentrar en mi ubicación
   const onRecenter = () => {
@@ -386,6 +369,37 @@ export default function MapsScreen({ navigation }: any) {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
     };
   }, []);
+
+  const enviarPostulacion = async (userId: number) => {
+    try {
+      if (!user?.id) {
+        Alert.alert('Error', 'Usuario no autenticado');
+        return;
+      }
+
+      setLoadingUserId(userId);
+
+      socket.emit('enviarPostulacion', {
+        trabajadorId: user.id,
+        usuarioId: userId,
+      }, (response: any) => {
+        if (response?.success) {
+          Toast.show({
+            type: 'success',
+            text1: '¡Postulación enviada!',
+            text2: 'El usuario ha recibido tu solicitud.',
+          });
+        } else {
+          Alert.alert('Error', response?.message || 'No se pudo enviar la postulación');
+        }
+      });
+    } catch (error) {
+      console.error('Error enviando postulación:', error);
+      Alert.alert('Error', 'Ocurrió un error al enviar la postulación');
+    } finally {
+      setLoadingUserId(null);
+    }
+  };
 
   return (
     <View style={styles.container}>
@@ -443,7 +457,8 @@ export default function MapsScreen({ navigation }: any) {
         </Text>
       </Pressable>
 
-      <View style={styles.radioSelector}>
+      {/* BOTÓN RADIO */}
+      <View style={styles.radioFab}>
         {RADIOS.map((r) => (
           <Pressable
             key={r}
@@ -503,10 +518,13 @@ export default function MapsScreen({ navigation }: any) {
 
                 <Pressable
                   style={styles.modalClose}
-                  onPress={() => setModalVisible(false)}
+                  onPress={() => {
+                    setModalVisible(false);
+                    enviarPostulacion(selectedUser.id);
+                  }}
                 >
                   <Text style={{ color: '#fff', fontWeight: '700' }}>
-                    Cerrar
+                    Postular
                   </Text>
                 </Pressable>
               </>
@@ -517,6 +535,7 @@ export default function MapsScreen({ navigation }: any) {
         </View>
       </Modal>
     </View>
+
   );
 
 }
@@ -704,39 +723,37 @@ const styles = StyleSheet.create({
   },
 
 
+  radioFab: {
+  position: 'absolute',
+  right: 16,
+  bottom: 140, // encima del botón "Centrar"
+  backgroundColor: '#ffffff',
+  borderRadius: 16,
+  padding: 6,
+  elevation: 6,
+},
 
+radioBtn: {
+  paddingVertical: 8,
+  paddingHorizontal: 14,
+  borderRadius: 10,
+  marginVertical: 4,
+  backgroundColor: '#f3f4f6',
+},
 
+radioBtnActive: {
+  backgroundColor: '#16A34A',
+},
 
-  radioSelector: {
-    position: 'absolute',
-    bottom: 140,
-    right: 16,
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 6,
-    elevation: 6,
-  },
+radioTxt: {
+  fontSize: 13,
+  fontWeight: '600',
+  color: '#374151',
+},
 
-  radioBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 10,
-    marginVertical: 4,
-    backgroundColor: '#f3f4f6',
-  },
+radioTxtActive: {
+  color: '#ffffff',
+},
 
-  radioBtnActive: {
-    backgroundColor: '#16A34A',
-  },
-
-  radioTxt: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#374151',
-  },
-
-  radioTxtActive: {
-    color: '#fff',
-  },
 
 });

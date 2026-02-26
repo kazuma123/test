@@ -30,11 +30,9 @@ export default function AppHeader({ title, showBack = false }: Props) {
   return (
     <View style={styles.container}>
       <TouchableOpacity onPress={onPressLeft} style={styles.left}>
-        <Ionicons
-          name={showBack ? 'arrow-back' : 'menu'}
-          size={26}
-          color="#000"
-        />
+        <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#000' }}>
+          {showBack ? '←' : '≡'}
+        </Text>
       </TouchableOpacity>
 
       <Text style={styles.title}>{title}</Text>
