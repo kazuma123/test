@@ -27,7 +27,7 @@ interface User {
   foto_url?: string;
   roles: Role[];
 }
-
+const API_BASE = 'https://geolocalizacion-backend-wtnq.onrender.com';
 export default function MapsScreen({ navigation }: any) {
   const mapRef = useRef<MapView>(null);
   const lastSentRef = useRef<number>(0);
@@ -63,21 +63,37 @@ export default function MapsScreen({ navigation }: any) {
   };
 
   const [user, setUser] = useState<User | null>(null);
+  const [perfil, setPerfil] = useState<any>(null);
 
   useEffect(() => {
-    const loadUser = async () => {
+    const loadUserAndPerfil = async () => {
       try {
+        // 1. Cargar usuario desde AsyncStorage
         const userString = await AsyncStorage.getItem('user');
-        if (userString) {
-          console.log('Usuario cargado desde AsyncStorage:', JSON.parse(userString));
-          setUser(JSON.parse(userString));
-        }
+
+        if (!userString) return;
+
+        const userParsed = JSON.parse(userString);
+        console.log('Usuario cargado:', userParsed);
+        setUser(userParsed);
+
+        // 2. Obtener userId
+        const userId = userParsed.id; // ajusta si tu campo se llama diferente
+
+        // 3. Llamar al endpoint con el userId
+        const response = await axios.get(
+          `${API_BASE}/perfil-profesional/${userId}`
+        );
+
+        console.log('Perfil profesional:', response.data);
+        setPerfil(response.data);
+
       } catch (error) {
-        console.log('Error cargando usuario:', error);
+        console.log('Error cargando datos:', error);
       }
     };
 
-    loadUser();
+    loadUserAndPerfil();
   }, []);
 
   const askPermission = async (): Promise<boolean> => {
@@ -202,6 +218,8 @@ export default function MapsScreen({ navigation }: any) {
                 userId: user.id,
                 lat: pos.coords.latitude,
                 lng: pos.coords.longitude,
+                foto_url: user.foto_url || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y',
+                tituloProfesional: perfil.tituloProfesional || 'No especificado',
               });
               break;
 
