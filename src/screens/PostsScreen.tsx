@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TextInput, Button, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TextInput, Button, Alert, TouchableOpacity } from 'react-native';
 import AppHeader from '../components/AppHeader';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocation } from '../lib/LocationContext';
 import axios from 'axios';
+import PostuladosModal from '../components/PostuladosModal';
 
 interface Role {
     id: number;
@@ -28,12 +29,13 @@ export default function PostsScreen() {
     const { location } = useLocation();
     const [titulo, setTitulo] = useState('');
     const [descripcion, setDescripcion] = useState('');
-    const ROLE_EMPRESA = 2;
 
-    const isEmpresa = (user?: User): boolean => {
-        if (!user || !Array.isArray(user.roles)) return false;
-        return user.roles.some((role) => role.id === ROLE_EMPRESA);
-    };
+    const [modalVisible, setModalVisible] = useState(false);
+    const [postulados, setPostulados] = useState<any[]>([]);
+    const [loadingPostulados, setLoadingPostulados] = useState(false);
+
+
+
     // Simular usuario actual
     const [user, setUser] = useState<User | null>(null);
 
@@ -126,60 +128,196 @@ export default function PostsScreen() {
             console.error(error);
         }
     };
-    const updatePost = async (id: any, newTitulo: any, newDescripcion: any) => {
-        try {
-            const res = await fetch(`https://geolocalizacion-backend-wtnq.onrender.com/publicacion/${id}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ titulo: newTitulo, descripcion: newDescripcion }),
-            });
 
-            if (res.ok) {
-                fetchPosts();
-            }
+    const verPostulados = async (publicacionId: number) => {
+        console.log('Cargando postulados para publicación ID:', publicacionId);
+        setLoadingPostulados(true);
+
+        try {
+            const { data } = await axios.get(
+                `https://geolocalizacion-backend-wtnq.onrender.com/postulaciones/publicacion/${publicacionId}`
+            );
+
+            setPostulados(data);      // lista de objetos como el que mostraste
+            setModalVisible(true);    // abre el modal
         } catch (error) {
             console.error(error);
+            Alert.alert(
+                'Error',
+                'No se pudieron cargar los postulados'
+            );
+        } finally {
+            setLoadingPostulados(false);
         }
     };
+
+
     return (
         <View style={styles.container}>
             <AppHeader title="Mis publicaciones" showBack />
 
-            {/* Formulario Crear */}
-            <TextInput
-                placeholder="Título"
-                value={titulo}
-                onChangeText={setTitulo}
-                style={styles.input}
-            />
-            <TextInput
-                placeholder="Descripción"
-                value={descripcion}
-                onChangeText={setDescripcion}
-                style={styles.input}
-            />
-            <Button title="Crear publicación" onPress={createPost} />
+            {/* Formulario */}
+            <View style={styles.form}>
+                <TextInput
+                    placeholder="Título"
+                    value={titulo}
+                    onChangeText={setTitulo}
+                    style={styles.input}
+                />
+                <TextInput
+                    placeholder="Descripción"
+                    value={descripcion}
+                    onChangeText={setDescripcion}
+                    style={[styles.input, styles.textArea]}
+                    multiline
+                />
+                <TouchableOpacity style={styles.createButton} onPress={createPost}>
+                    <Text style={styles.createButtonText}>Crear publicación</Text>
+                </TouchableOpacity>
+            </View>
 
-            {/* Lista de publicaciones */}
-            <FlatList
-                data={posts}
-                keyExtractor={(item) => item.id.toString()}
-                renderItem={({ item }) => (
-                    <View style={styles.postItem}>
-                        <Text style={styles.postTitle}>{item.titulo}</Text>
-                        <Text>{item.descripcion}</Text>
-                        <Button title="Eliminar" onPress={() => deletePost(item.id)} />
-                        {/* Para actualizar podrías abrir un modal o reutilizar inputs */}
-                    </View>
-                )}
+            {/* Tabla */}
+            <View style={styles.table}>
+                {/* Header */}
+                <View style={styles.tableHeader}>
+                    <Text style={[styles.headerCell, { flex: 2 }]}>Título</Text>
+                    {/* <Text style={[styles.headerCell, { flex: 3 }]}>Descripción</Text> */}
+                    <Text style={[styles.headerCell, { flex: 2, textAlign: 'center' }]}>Acciones</Text>
+                </View>
+
+                <FlatList
+                    data={posts}
+                    keyExtractor={(item) => item.id.toString()}
+                    renderItem={({ item }) => (
+                        <View style={styles.tableRow}>
+                            <Text style={[styles.cell, { flex: 2 }]}>
+                                {item.titulo}
+                            </Text>
+
+                            {/* <Text style={[styles.cell, { flex: 3 }]} numberOfLines={2}>
+              {item.descripcion}
+            </Text> */}
+
+                            <View style={[styles.cell, styles.actions]}>
+                                <TouchableOpacity
+                                    style={styles.postuladosBtn}
+                                    onPress={() => verPostulados(item.id)}
+                                >
+                                    <Text style={styles.actionText}>Postulados</Text>
+                                </TouchableOpacity>
+
+                                <TouchableOpacity
+                                    style={styles.deleteBtn}
+                                    onPress={() => deletePost(item.id)}
+                                >
+                                    <Text style={styles.actionText}>Eliminar</Text>
+                                </TouchableOpacity>
+                            </View>
+                        </View>
+                    )}
+                />
+            </View>
+            <PostuladosModal
+                visible={modalVisible}
+                postulados={postulados}
+                onClose={() => setModalVisible(false)}
             />
+
         </View>
     );
+
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, padding: 16 },
-    input: { borderWidth: 1, borderColor: '#ccc', marginVertical: 8, padding: 8, borderRadius: 5 },
-    postItem: { borderWidth: 1, borderColor: '#ddd', padding: 12, marginVertical: 6, borderRadius: 5 },
-    postTitle: { fontWeight: 'bold', marginBottom: 4 },
+    container: {
+        flex: 1,
+        backgroundColor: '#f7f7f7',
+        padding: 16,
+    },
+
+    /* Formulario */
+    form: {
+        backgroundColor: '#fff',
+        padding: 12,
+        borderRadius: 8,
+        marginBottom: 16,
+        elevation: 2,
+    },
+    input: {
+        borderWidth: 1,
+        borderColor: '#ddd',
+        borderRadius: 6,
+        padding: 10,
+        marginBottom: 8,
+        backgroundColor: '#fafafa',
+    },
+    textArea: {
+        height: 70,
+    },
+    createButton: {
+        backgroundColor: '#2563eb',
+        padding: 12,
+        borderRadius: 6,
+        alignItems: 'center',
+    },
+    createButtonText: {
+        color: '#fff',
+        fontWeight: '600',
+    },
+
+    /* Tabla */
+    table: {
+        backgroundColor: '#fff',
+        borderRadius: 8,
+        overflow: 'hidden',
+        elevation: 2,
+    },
+    tableHeader: {
+        flexDirection: 'row',
+        backgroundColor: '#e5e7eb',
+        paddingVertical: 8,
+    },
+    headerCell: {
+        fontWeight: '700',
+        paddingHorizontal: 8,
+        fontSize: 13,
+    },
+    tableRow: {
+        flexDirection: 'row',
+        borderBottomWidth: 1,
+        borderBottomColor: '#eee',
+        paddingVertical: 10,
+        alignItems: 'center',
+    },
+    cell: {
+        paddingHorizontal: 8,
+        fontSize: 13,
+        color: '#333',
+    },
+
+    /* Acciones */
+    actions: {
+        flex: 2,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: 6,
+    },
+    postuladosBtn: {
+        backgroundColor: '#10b981',
+        paddingVertical: 4,
+        paddingHorizontal: 8,
+        borderRadius: 4,
+    },
+    deleteBtn: {
+        backgroundColor: '#ef4444',
+        paddingVertical: 4,
+        paddingHorizontal: 8,
+        borderRadius: 4,
+    },
+    actionText: {
+        color: '#fff',
+        fontSize: 12,
+        fontWeight: '600',
+    },
 });
+
