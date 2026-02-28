@@ -4,14 +4,12 @@ import { View, StyleSheet, Pressable, Text, TextInput, Platform, Alert, Image, T
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import Geolocation, { GeoPosition } from 'react-native-geolocation-service';
 import { PERMISSIONS, request, RESULTS } from 'react-native-permissions';
-import { fetchNearby, NearbyItem } from '../services/nearby';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import io from "socket.io-client";
 import { DrawerActions } from '@react-navigation/native';
 import { useLocation } from '../lib/LocationContext';
 import { fetchUserById } from '../services/user.service';
 import { indriveMapStyle } from '../styles/mapStyle';
-import Toast from 'react-native-toast-message';
 import axios from 'axios';
 
 interface Role {
@@ -21,7 +19,6 @@ interface Role {
 interface User {
   id: number;
   nombre: string;
-  apellido: string;
   email: string;
   tipo: string;
   foto_url?: string;
@@ -47,11 +44,11 @@ export default function MapsScreen({ navigation }: any) {
 
   const watchIdRef = useRef<number | null>(null);
   const firstFixDoneRef = useRef(false);
-  const regionRef = useRef<Region | null>(null);
   const debounceTimerRef = useRef<any | null>(null);
 
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [loadingUserId, setLoadingUserId] = useState<number | null>(null);
+
 
   const radioRef = useRef<number>(5);
 
@@ -206,7 +203,7 @@ export default function MapsScreen({ navigation }: any) {
                 lat: pos.coords.latitude,
                 lng: pos.coords.longitude,
                 foto_url: user.foto_url || 'https://www.gravatar.com/avatar/00000000000000000000000000000000?d=mp&f=y',
-                tituloProfesional: perfil.tituloProfesional || 'No especificado',
+                tituloProfesional: perfil?.tituloProfesional || "No especificado",
               });
               break;
 
@@ -251,20 +248,6 @@ export default function MapsScreen({ navigation }: any) {
       Geolocation.stopObserving();
     };
   }, [hasPermission, mapReady]);
-
-  const getRadioByZoom = (latitudeDelta: number): number => {
-    if (latitudeDelta < 0.005) return 0.3;   // calle
-    if (latitudeDelta < 0.01) return 0.5;   // barrio
-    if (latitudeDelta < 0.02) return 1;     // distrito
-    if (latitudeDelta < 0.05) return 2;
-    if (latitudeDelta < 0.1) return 5;
-    if (latitudeDelta < 0.3) return 10;    // ciudad pequeña
-    if (latitudeDelta < 0.6) return 25;    // ciudad grande
-    if (latitudeDelta < 1.0) return 50;    // área metropolitana
-    return 80;                               // toda la ciudad / región
-  };
-
-
 
   const handleLoadUser = async (userId: number) => {
     try {
@@ -311,18 +294,6 @@ export default function MapsScreen({ navigation }: any) {
       setNearby(lista);
       // console.log("👥 Cercanos actualizados:", lista);
     };
-    socket.on('connect', () => {
-      socket.emit('join', { userId: user?.id }); // ID REAL del trabajador
-    });
-
-    socket.on('notificacion', (data) => {
-      console.log('📩 NOTIFICACIÓN RECIBIDA:', data);
-      Toast.show({
-        type: 'success',
-        text1: 'Notificación',
-        text2: data.mensaje,
-      });
-    });
 
     socket.on("ubicacionActualizada", handleUbicacionActualizada);
     socket.on("cercanosActualizados", handleCercanosActualizados);
@@ -332,7 +303,7 @@ export default function MapsScreen({ navigation }: any) {
       socket.off("disconnect", handleDisconnect);
       socket.off("ubicacionActualizada", handleUbicacionActualizada);
       socket.off("cercanosActualizados", handleCercanosActualizados);
-      socket.disconnect(); // cerramos al salir de la pantalla
+      // socket.disconnect(); // cerramos al salir de la pantalla
     };
   }, []);
 
@@ -370,36 +341,6 @@ export default function MapsScreen({ navigation }: any) {
     };
   }, []);
 
-  const enviarPostulacion = async (userId: number) => {
-    try {
-      if (!user?.id) {
-        Alert.alert('Error', 'Usuario no autenticado');
-        return;
-      }
-
-      setLoadingUserId(userId);
-
-      socket.emit('enviarPostulacion', {
-        trabajadorId: user.id,
-        usuarioId: userId,
-      }, (response: any) => {
-        if (response?.success) {
-          Toast.show({
-            type: 'success',
-            text1: '¡Postulación enviada!',
-            text2: 'El usuario ha recibido tu solicitud.',
-          });
-        } else {
-          Alert.alert('Error', response?.message || 'No se pudo enviar la postulación');
-        }
-      });
-    } catch (error) {
-      console.error('Error enviando postulación:', error);
-      Alert.alert('Error', 'Ocurrió un error al enviar la postulación');
-    } finally {
-      setLoadingUserId(null);
-    }
-  };
 
   return (
     <View style={styles.container}>
@@ -431,22 +372,24 @@ export default function MapsScreen({ navigation }: any) {
           showsMyLocationButton={false}
           customMapStyle={indriveMapStyle}
         >
-          {nearby.map((item) => (
-            <Marker
-              key={item.userId}
-              coordinate={{
-                latitude: item.lat,
-                longitude: item.lng,
-              }}
-              onPress={() => handleLoadUser(item.userId)}
-            >
-              <View style={styles.pinWrap}>
-                <View style={styles.pinFallback}>
-                  <Text style={styles.pinFallbackTxt}>•</Text>
+          {user?.roles?.[0]?.id === 2 && (
+            nearby.map((item) => (
+              <Marker
+                key={item.userId}
+                coordinate={{
+                  latitude: item.lat,
+                  longitude: item.lng,
+                }}
+                onPress={() => handleLoadUser(item.userId)}
+              >
+                <View style={styles.pinWrap}>
+                  <View style={styles.pinFallback}>
+                    <Text style={styles.pinFallbackTxt}>•</Text>
+                  </View>
                 </View>
-              </View>
-            </Marker>
-          ))}
+              </Marker>
+            ))
+          )}
         </MapView>
       )}
 
@@ -458,27 +401,30 @@ export default function MapsScreen({ navigation }: any) {
       </Pressable>
 
       {/* BOTÓN RADIO */}
-      <View style={styles.radioFab}>
-        {RADIOS.map((r) => (
-          <Pressable
-            key={r}
-            onPress={() => handleSelectRadio(r)}
-            style={[
-              styles.radioBtn,
-              location.radio === r && styles.radioBtnActive,
-            ]}
-          >
-            <Text
+      {user?.roles?.[0]?.id === 2 && (
+        <View style={styles.radioFab}>
+          {RADIOS.map((r) => (
+            <Pressable
+              key={r}
+              onPress={() => handleSelectRadio(r)}
               style={[
-                styles.radioTxt,
-                location.radio === r && styles.radioTxtActive,
+                styles.radioBtn,
+                location.radio === r && styles.radioBtnActive,
               ]}
             >
-              {r} km
-            </Text>
-          </Pressable>
-        ))}
-      </View>
+              <Text
+                style={[
+                  styles.radioTxt,
+                  location.radio === r && styles.radioTxtActive,
+                ]}
+              >
+                {r} km
+              </Text>
+            </Pressable>
+          ))}
+        </View>
+      )}
+
 
 
       {/* 👇 AQUÍ VA EL MODAL */}
@@ -506,7 +452,7 @@ export default function MapsScreen({ navigation }: any) {
                 />
 
                 <Text style={styles.modalName}>
-                  {selectedUser.nombre} {selectedUser.apellido}
+                  {selectedUser.nombre}
                 </Text>
 
                 <Text style={styles.modalText}>
@@ -520,11 +466,10 @@ export default function MapsScreen({ navigation }: any) {
                   style={styles.modalClose}
                   onPress={() => {
                     setModalVisible(false);
-                    enviarPostulacion(selectedUser.id);
                   }}
                 >
                   <Text style={{ color: '#fff', fontWeight: '700' }}>
-                    Postular
+                    Cerrar
                   </Text>
                 </Pressable>
               </>
@@ -724,36 +669,36 @@ const styles = StyleSheet.create({
 
 
   radioFab: {
-  position: 'absolute',
-  right: 16,
-  bottom: 140, // encima del botón "Centrar"
-  backgroundColor: '#ffffff',
-  borderRadius: 16,
-  padding: 6,
-  elevation: 6,
-},
+    position: 'absolute',
+    right: 16,
+    bottom: 140, // encima del botón "Centrar"
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    padding: 6,
+    elevation: 6,
+  },
 
-radioBtn: {
-  paddingVertical: 8,
-  paddingHorizontal: 14,
-  borderRadius: 10,
-  marginVertical: 4,
-  backgroundColor: '#f3f4f6',
-},
+  radioBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 10,
+    marginVertical: 4,
+    backgroundColor: '#f3f4f6',
+  },
 
-radioBtnActive: {
-  backgroundColor: '#16A34A',
-},
+  radioBtnActive: {
+    backgroundColor: '#16A34A',
+  },
 
-radioTxt: {
-  fontSize: 13,
-  fontWeight: '600',
-  color: '#374151',
-},
+  radioTxt: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#374151',
+  },
 
-radioTxtActive: {
-  color: '#ffffff',
-},
+  radioTxtActive: {
+    color: '#ffffff',
+  },
 
 
 });

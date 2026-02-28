@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TextInput, Button, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, ActivityIndicator, ScrollView, Alert, TouchableOpacity } from 'react-native';
 import AppHeader from '../components/AppHeader';
 import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -6,7 +6,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 interface User {
   id: number;
   nombre: string;
-  apellido: string;
   email: string;
 }
 
@@ -24,8 +23,9 @@ export default function ProfileScreen() {
       try {
         const userString = await AsyncStorage.getItem('user');
         if (userString) {
-          setUser(JSON.parse(userString));
-          fetchProfile(JSON.parse(userString).id); // carga el perfil si hay usuario
+          const parsed = JSON.parse(userString);
+          setUser(parsed);
+          fetchProfile(parsed.id);
         }
       } catch (error) {
         console.log('Error cargando usuario:', error);
@@ -37,11 +37,13 @@ export default function ProfileScreen() {
   const fetchProfile = async (userId: number) => {
     try {
       const res = await fetch(`https://geolocalizacion-backend-wtnq.onrender.com/perfil-profesional/${userId}`);
+
       if (res.status === 404) {
         setHasProfile(false);
         setFormData({ tituloProfesional: '', descripcionProfesional: '' });
         return;
       }
+
       const data = await res.json();
       setFormData({
         tituloProfesional: data.tituloProfesional ?? '',
@@ -54,90 +56,144 @@ export default function ProfileScreen() {
   };
 
   const saveProfile = async () => {
-    if (!user) return alert('Usuario no cargado');
+    if (!user) return Alert.alert('Usuario no cargado');
     setSaving(true);
     try {
       const res = await fetch(`https://geolocalizacion-backend-wtnq.onrender.com/perfil-profesional/${user.id}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tituloProfesional: formData.tituloProfesional,
-          descripcionProfesional: formData.descripcionProfesional
-        }),
+        body: JSON.stringify(formData),
       });
+
       if (res.ok) {
-        alert('Perfil creado correctamente');
+        Alert.alert('Perfil creado correctamente');
         setHasProfile(true);
         fetchProfile(user.id);
       } else {
-        alert('Error al crear perfil');
+        Alert.alert('Error al crear perfil');
       }
     } catch (error) {
       console.log(error);
-      alert('Error al crear perfil');
+      Alert.alert('Error al crear perfil');
     } finally {
       setSaving(false);
     }
   };
 
   const updateProfile = async () => {
-    if (!user) return alert('Usuario no cargado');
+    if (!user) return Alert.alert('Usuario no cargado');
     setSaving(true);
     try {
       const res = await fetch(`https://geolocalizacion-backend-wtnq.onrender.com/perfil-profesional/${user.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tituloProfesional: formData.tituloProfesional,
-          descripcionProfesional: formData.descripcionProfesional,
-        }),
+        body: JSON.stringify(formData),
       });
+
       if (res.ok) {
-        alert('Perfil actualizado correctamente');
+        Alert.alert('Perfil actualizado correctamente');
         fetchProfile(user.id);
       } else {
-        alert('Error al actualizar perfil');
+        Alert.alert('Error al actualizar perfil');
       }
     } catch (error) {
       console.log(error);
-      alert('Error al actualizar perfil');
+      Alert.alert('Error al actualizar perfil');
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <View style={styles.container}>
+    <View style={{ flex: 1 }}>
       <AppHeader title="Perfil Profesional" showBack />
-      <Text style={styles.label}>Título profesional:</Text>
-      <TextInput
-        style={styles.input}
-        value={formData.tituloProfesional}
-        onChangeText={(text) => setFormData({ ...formData, tituloProfesional: text })}
-        placeholder="Ingrese su título"
-      />
-      <Text style={styles.label}>Descripción profesional:</Text>
-      <TextInput
-        style={[styles.input, { height: 80 }]}
-        value={formData.descripcionProfesional}
-        onChangeText={(text) => setFormData({ ...formData, descripcionProfesional: text })}
-        placeholder="Ingrese su descripción"
-        multiline
-      />
 
-      {saving ? (
-        <ActivityIndicator size="large" color="#000" style={{ marginTop: 20 }} />
-      ) : hasProfile ? (
-        <Button title="Actualizar perfil" onPress={updateProfile} />
-      ) : (
-        <Button title="Crear perfil" onPress={saveProfile} />
-      )}
+      <ScrollView contentContainerStyle={styles.container}>
+
+        <Text style={styles.label}>Título profesional</Text>
+        <TextInput
+          style={styles.input}
+          value={formData.tituloProfesional}
+          onChangeText={(text) => setFormData({ ...formData, tituloProfesional: text })}
+          placeholder="Ej: Ingeniero de Sistemas"
+          placeholderTextColor="#999"
+        />
+
+        <Text style={styles.label}>Descripción profesional</Text>
+        <TextInput
+          style={[styles.input, styles.textArea]}
+          value={formData.descripcionProfesional}
+          onChangeText={(text) => setFormData({ ...formData, descripcionProfesional: text })}
+          placeholder="Describe tu experiencia, habilidades, logros..."
+          placeholderTextColor="#999"
+          multiline
+        />
+
+        {saving ? (
+          <ActivityIndicator size="large" color="#2563eb" style={{ marginTop: 25 }} />
+        ) : (
+          <TouchableOpacity
+            style={styles.btnPrimary}
+            onPress={hasProfile ? updateProfile : saveProfile}
+          >
+            <Text style={styles.btnText}>
+              {hasProfile ? 'Actualizar perfil' : 'Crear perfil'}
+            </Text>
+          </TouchableOpacity>
+        )}
+
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16 },
-  label: { fontWeight: 'bold', marginTop: 16, marginBottom: 4 },
-  input: { borderWidth: 1, borderColor: '#ccc', borderRadius: 5, padding: 8 },
+  container: {
+    padding: 18,
+    backgroundColor: '#f9fafb',
+  },
+
+  label: {
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 6,
+    marginTop: 18,
+    color: '#111827',
+  },
+
+  input: {
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#d1d5db',
+    borderRadius: 10,
+    padding: 12,
+    fontSize: 14,
+    color: '#111',
+  },
+
+  textArea: {
+    height: 110,
+    textAlignVertical: 'top',
+  },
+
+  btnPrimary: {
+    backgroundColor: '#2563eb',
+    paddingVertical: 14,
+    borderRadius: 10,
+    marginTop: 30,
+    alignItems: 'center',
+
+    // sombra elegante
+    shadowColor: '#2563eb',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.25,
+    shadowRadius: 5,
+    elevation: 4,
+  },
+
+  btnText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+  },
 });

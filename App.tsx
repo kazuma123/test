@@ -7,7 +7,7 @@ import RegisterScreen from './src/screens/RegisterScreen';
 import MapsDrawer from './src/navigation/MapsDrawer';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { LocationProvider } from './src/lib/LocationContext';
-
+import Toast from 'react-native-toast-message';
 type RootStackParamList = {
   login: undefined;
   maps: undefined;
@@ -28,7 +28,8 @@ export default function App() {
           </Stack.Navigator>
         </LocationProvider>
       </NavigationContainer>
-    </GestureHandlerRootView>
+      <Toast />
+    </GestureHandlerRootView>  
   );
 }
 

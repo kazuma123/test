@@ -29,7 +29,6 @@ export default function LoginScreen({ navigation }: any) {
       const token = res.data?.token || res.data?.accessToken || res.data?.jwt;
       if (token) await AsyncStorage.setItem('auth_token', String(token));
       if (res.data?.user) await AsyncStorage.setItem('user', JSON.stringify(res.data.user));
-      Alert.alert('Bienvenido', 'Inicio de sesión exitoso.');
       navigation.navigate('maps', res.data?.user);
     } catch (e: any) {
       console.log('Login error details:', e);

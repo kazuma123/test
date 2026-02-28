@@ -11,10 +11,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import MapsScreen from '../screens/MapsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import PostsScreen from '../screens/PostsScreen';
+import OfertasLaboralesScreen from '../screens/OfertasLaboralesScreen';
 
 import { useWorkerSocket } from '../context/SocketContext';
-import PostulacionesScreen from '../screens/PostulacionesScreen';
-import PostulacionesDetalleScreen from '../screens/PostulacionesDetalleScreen';
+import PostulacionesDetalleScreen from '../screens/OfertasLaboralesScreen';
+import NotificacionModal from '../components/NotificaciónModal';
+import axios from 'axios';
+import PerfilUsuarioScreen from '../screens/PerfilUsuarioScreen';
 // import Icon from 'react-native-vector-icons/Ionicons';
 
 const Drawer = createDrawerNavigator();
@@ -27,7 +30,6 @@ interface Role {
 interface User {
   id: number;
   nombre: string;
-  apellido: string;
   email: string;
   foto_url?: string;
   roles: Role[];
@@ -55,7 +57,7 @@ function RatingStars({ rating = 5 }: { rating?: number }) {
 function CustomDrawerContent({
   navigation,
   user,
-}: DrawerContentComponentProps & { user: User | null }) {
+}: DrawerContentComponentProps & { user: User | null; tienePerfil?: boolean | null }) {
   const isEmpresa = user?.roles?.some(r => r.id === 2);
 
   return (
@@ -72,7 +74,7 @@ function CustomDrawerContent({
         />
 
         <Text style={styles.name}>
-          {user ? `${user.nombre} ${user.apellido}` : 'Usuario'}
+          {user ? `${user.nombre}` : 'Usuario'}
         </Text>
 
         <RatingStars rating={user?.rating ?? 4.8} />
@@ -92,6 +94,12 @@ function CustomDrawerContent({
           onPress={() => navigation.navigate('Mapa')}
         />
 
+        <DrawerItem
+          label="Perfil usuario"
+          labelStyle={styles.label}
+          onPress={() => navigation.navigate("PerfilUsuario", { user })}
+        />
+
         {isEmpresa && (
           <DrawerItem
             label="Mis publicaciones"
@@ -100,21 +108,31 @@ function CustomDrawerContent({
           />
         )}
 
-        <DrawerItem
-          label="Perfil profesional"
-          labelStyle={styles.label}
-          onPress={() => navigation.navigate('Perfil')}
+        {!isEmpresa && (
+          <DrawerItem
+            label="Perfil profesional"
+            labelStyle={styles.label}
+            onPress={() => navigation.navigate('Perfil')}
+          />
+        )}
+
+        {!isEmpresa && (
+          <DrawerItem
+            label="Ofertas laborales"
+            labelStyle={styles.label}
+            onPress={() => navigation.navigate('OfertasLaborales')}
+          />
+        )}
+
+        <View
+          style={{
+            height: 1,
+            backgroundColor: '#ccc',
+            marginVertical: 12,
+            marginHorizontal: 16,
+          }}
         />
 
-        <DrawerItem
-          label="Postulaciones"
-          labelStyle={styles.label}
-          onPress={() => navigation.navigate('Postulaciones')}
-        />
-      </View>
-
-      {/* FOOTER */}
-      <View style={styles.footer}>
         <DrawerItem
           label="Cerrar sesión"
           labelStyle={styles.logout}
@@ -133,6 +151,7 @@ function CustomDrawerContent({
 ================================ */
 export default function MapsDrawer() {
   const [user, setUser] = useState<User | null>(null);
+  const [tienePerfil, setTienePerfil] = useState<boolean | null>(null);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -144,26 +163,59 @@ export default function MapsDrawer() {
     loadUser();
   }, []);
 
-  useWorkerSocket(user);
+  useEffect(() => {
+    const fetchPerfil = async () => {
+      try {
+        const res = await axios.get(
+          `https://geolocalizacion-backend-wtnq.onrender.com/perfil-profesional/${user?.id}`
+        );
+        setTienePerfil(res.data && res.data.id ? true : false);
+      } catch (err) {
+        setTienePerfil(false);
+      }
+    };
+
+    if (user?.id) fetchPerfil();
+  }, [user]);
+
+  const {
+    notifyVisible,
+    notifyData,
+    setNotifyVisible,
+    enviarPostulacion
+  } = useWorkerSocket(user);
 
   return (
-    <Drawer.Navigator
-      drawerContent={props => (
-        <CustomDrawerContent {...props} user={user} />
-      )}
-      screenOptions={{
-        headerShown: false,
-        drawerStyle: styles.drawer,
-        drawerType: 'front',
-        overlayColor: 'rgba(0, 0, 0, 0.3)',
-      }}
-    >
-      <Drawer.Screen name="Mapa" component={MapsScreen} />
-      <Drawer.Screen name="MisPublicaciones" component={PostsScreen} />
-      <Drawer.Screen name="Perfil" component={ProfileScreen} />
-      <Drawer.Screen name="Postulaciones" component={PostulacionesScreen} />
-      <Drawer.Screen name="PostulacionesDetalle" component={PostulacionesDetalleScreen} />
-    </Drawer.Navigator>
+    <>
+      <NotificacionModal
+        visible={notifyVisible}
+        data={notifyData}
+        onClose={() => setNotifyVisible(false)}
+        onAccept={() => {
+          if (!notifyData) return;
+          enviarPostulacion(notifyData.publicacionId);
+          setNotifyVisible(false);
+        }}
+      />
+      <Drawer.Navigator
+        drawerContent={props => (
+          <CustomDrawerContent {...props} user={user} tienePerfil={tienePerfil} />
+        )}
+        screenOptions={{
+          headerShown: false,
+          drawerStyle: styles.drawer,
+          drawerType: 'front',
+          overlayColor: 'rgba(0, 0, 0, 0.3)',
+        }}
+      >
+        <Drawer.Screen name="Mapa" component={MapsScreen} />
+        <Drawer.Screen name="MisPublicaciones" component={PostsScreen} />
+        <Drawer.Screen name="Perfil" component={ProfileScreen} />
+        <Drawer.Screen name="OfertasLaborales" component={OfertasLaboralesScreen} />
+        <Drawer.Screen name="PostulacionesDetalle" component={PostulacionesDetalleScreen} />
+        <Drawer.Screen name="PerfilUsuario" component={PerfilUsuarioScreen} />
+      </Drawer.Navigator>
+    </>
   );
 }
 

@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TextInput, Button, Alert, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TextInput, Button, Alert, TouchableOpacity, ScrollView } from 'react-native';
 import AppHeader from '../components/AppHeader';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocation } from '../lib/LocationContext';
 import axios from 'axios';
-import PostuladosModal from '../components/PostuladosModal';
+import PostuladosModal from '../components/PostulanteModal';
 
 interface Role {
     id: number;
@@ -19,7 +19,6 @@ interface Post {
 interface User {
     id: number;
     nombre: string;
-    apellido: string;
     email: string;
     roles: Role[];
 }
@@ -31,7 +30,7 @@ export default function PostsScreen() {
     const [descripcion, setDescripcion] = useState('');
 
     const [modalVisible, setModalVisible] = useState(false);
-    const [postulados, setPostulados] = useState<any[]>([]);
+    const [postulantes, setPostulantes] = useState<any[]>([]);
     const [loadingPostulados, setLoadingPostulados] = useState(false);
 
 
@@ -130,7 +129,6 @@ export default function PostsScreen() {
     };
 
     const verPostulados = async (publicacionId: number) => {
-        console.log('Cargando postulados para publicación ID:', publicacionId);
         setLoadingPostulados(true);
 
         try {
@@ -138,13 +136,13 @@ export default function PostsScreen() {
                 `https://geolocalizacion-backend-wtnq.onrender.com/postulaciones/publicacion/${publicacionId}`
             );
 
-            setPostulados(data);      // lista de objetos como el que mostraste
+            setPostulantes(data);      // lista de objetos como el que mostraste
             setModalVisible(true);    // abre el modal
         } catch (error) {
             console.error(error);
             Alert.alert(
                 'Error',
-                'No se pudieron cargar los postulados'
+                'No se pudieron cargar los postulantes'
             );
         } finally {
             setLoadingPostulados(false);
@@ -153,79 +151,80 @@ export default function PostsScreen() {
 
 
     return (
-        <View style={styles.container}>
+        <View style={{ flex: 1 }}>
             <AppHeader title="Mis publicaciones" showBack />
 
-            {/* Formulario */}
-            <View style={styles.form}>
-                <TextInput
-                    placeholder="Título"
-                    value={titulo}
-                    onChangeText={setTitulo}
-                    style={styles.input}
-                />
-                <TextInput
-                    placeholder="Descripción"
-                    value={descripcion}
-                    onChangeText={setDescripcion}
-                    style={[styles.input, styles.textArea]}
-                    multiline
-                />
-                <TouchableOpacity style={styles.createButton} onPress={createPost}>
-                    <Text style={styles.createButtonText}>Crear publicación</Text>
-                </TouchableOpacity>
-            </View>
+            <FlatList
+                data={posts}
+                keyExtractor={(item) => item.id.toString()}
+                ListHeaderComponent={
+                    <View style={styles.container}>
+                        {/* Formulario */}
+                        <View style={styles.form}>
+                            <TextInput
+                                placeholder="Título"
+                                value={titulo}
+                                onChangeText={setTitulo}
+                                style={styles.input}
+                            />
+                            <TextInput
+                                placeholder="Descripción"
+                                value={descripcion}
+                                onChangeText={setDescripcion}
+                                style={[styles.input, styles.textArea]}
+                                multiline
+                            />
 
-            {/* Tabla */}
-            <View style={styles.table}>
-                {/* Header */}
-                <View style={styles.tableHeader}>
-                    <Text style={[styles.headerCell, { flex: 2 }]}>Título</Text>
-                    {/* <Text style={[styles.headerCell, { flex: 3 }]}>Descripción</Text> */}
-                    <Text style={[styles.headerCell, { flex: 2, textAlign: 'center' }]}>Acciones</Text>
-                </View>
-
-                <FlatList
-                    data={posts}
-                    keyExtractor={(item) => item.id.toString()}
-                    renderItem={({ item }) => (
-                        <View style={styles.tableRow}>
-                            <Text style={[styles.cell, { flex: 2 }]}>
-                                {item.titulo}
-                            </Text>
-
-                            {/* <Text style={[styles.cell, { flex: 3 }]} numberOfLines={2}>
-              {item.descripcion}
-            </Text> */}
-
-                            <View style={[styles.cell, styles.actions]}>
-                                <TouchableOpacity
-                                    style={styles.postuladosBtn}
-                                    onPress={() => verPostulados(item.id)}
-                                >
-                                    <Text style={styles.actionText}>Postulados</Text>
-                                </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    style={styles.deleteBtn}
-                                    onPress={() => deletePost(item.id)}
-                                >
-                                    <Text style={styles.actionText}>Eliminar</Text>
-                                </TouchableOpacity>
-                            </View>
+                            <TouchableOpacity style={styles.createButton} onPress={createPost}>
+                                <Text style={styles.createButtonText}>Crear publicación</Text>
+                            </TouchableOpacity>
                         </View>
-                    )}
-                />
-            </View>
-            <PostuladosModal
-                visible={modalVisible}
-                postulados={postulados}
-                onClose={() => setModalVisible(false)}
-            />
 
+                        {/* Header tabla */}
+                        <View style={styles.tableHeader}>
+                            <Text style={[styles.headerCell, { flex: 2 }]}>Título</Text>
+                            <Text
+                                style={[
+                                    styles.headerCell,
+                                    { flex: 2, textAlign: "center" },
+                                ]}
+                            >
+                                Acciones
+                            </Text>
+                        </View>
+                    </View>
+                }
+                renderItem={({ item }) => (
+                    <View style={styles.tableRow}>
+                        <Text style={[styles.cell, { flex: 2 }]}>{item.titulo}</Text>
+
+                        <View style={[styles.cell, styles.actions]}>
+                            <TouchableOpacity
+                                style={styles.postuladosBtn}
+                                onPress={() => verPostulados(item.id)}
+                            >
+                                <Text style={styles.actionText}>Postulantes</Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                style={styles.deleteBtn}
+                                onPress={() => deletePost(item.id)}
+                            >
+                                <Text style={styles.actionText}>Eliminar</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                )}
+                ListFooterComponent={
+                    <PostuladosModal
+                        visible={modalVisible}
+                        postulantes={postulantes}
+                        onClose={() => setModalVisible(false)}
+                    />
+                }
+            />
         </View>
     );
-
 }
 
 const styles = StyleSheet.create({

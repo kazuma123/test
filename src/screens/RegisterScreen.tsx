@@ -10,7 +10,6 @@ import { launchImageLibrary } from 'react-native-image-picker';
 
 export default function RegisterScreen({ navigation }: any) {
   const [nombre, setNombre] = useState('');
-  const [apellido, setApellido] = useState('');
   const [dni, setDni] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -21,8 +20,7 @@ export default function RegisterScreen({ navigation }: any) {
 
   const canSubmit =
     nombre.trim().length > 0 &&
-    apellido.trim().length > 0 &&
-    dni.length === 8 &&
+    (dni.length === 8 || dni.length === 11) &&
     /\S+@\S+\.\S+/.test(email) &&
     password.length >= 6;
 
@@ -42,7 +40,6 @@ export default function RegisterScreen({ navigation }: any) {
         'body',
         JSON.stringify({
           nombre,
-          apellido,
           email,
           descripcion,
           dni,
@@ -129,18 +126,7 @@ export default function RegisterScreen({ navigation }: any) {
           <TextInput
             value={nombre}
             onChangeText={setNombre}
-            placeholder="Nombre"
-            placeholderTextColor="#9CA3AF"
-            style={styles.input}
-            autoCapitalize="words"
-            returnKeyType="next"
-          />
-
-          {/* Apellido */}
-          <TextInput
-            value={apellido}
-            onChangeText={setApellido}
-            placeholder="Apellido"
+            placeholder="Nombre, Empresa o Razon social"
             placeholderTextColor="#9CA3AF"
             style={styles.input}
             autoCapitalize="words"
@@ -150,8 +136,8 @@ export default function RegisterScreen({ navigation }: any) {
           {/* DNI */}
           <TextInput
             value={dni}
-            onChangeText={(t) => setDni(t.replace(/[^0-9]/g, '').slice(0, 8))}
-            placeholder="DNI (8 dígitos)"
+            onChangeText={(t) => setDni(t.replace(/[^0-9]/g, '').slice(0, 11))}
+            placeholder="DNI (8 dígitos) o RUC (11 dígitos)"
             placeholderTextColor="#9CA3AF"
             keyboardType="number-pad"
             style={styles.input}

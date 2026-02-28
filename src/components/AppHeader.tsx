@@ -9,7 +9,6 @@ import {
   DrawerActions,
   useNavigation,
 } from '@react-navigation/native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
 
 interface Props {
   title: string;
