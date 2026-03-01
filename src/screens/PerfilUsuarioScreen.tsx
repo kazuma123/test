@@ -89,7 +89,7 @@ export default function PerfilUsuarioScreen({ route, navigation }: Props) {
 
       console.log("FormData enviado:", formData);
 
-      await axios.put(
+      await axios.patch(
         `https://geolocalizacion-backend-wtnq.onrender.com/usuarios/${user.id}`,
         formData,
         {
