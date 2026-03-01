@@ -112,7 +112,7 @@ const PostuladosModal: React.FC<Props> = ({
                     </View>
 
                     {/* TELÉFONO DESTACADO */}
-                    <Text style={styles.phone}>📞 {trabajador.dni}</Text>
+                    <Text style={styles.phone}>📞 {trabajador.telefono}</Text>
                   </View>
                 </View>
               );
