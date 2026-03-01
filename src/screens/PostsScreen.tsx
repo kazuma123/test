@@ -66,7 +66,7 @@ export default function PostsScreen() {
         console.log("Obteniendo publicaciones para usuario ID:", user?.id);
         try {
             const res = await fetch(
-                `https://geolocalizacion-backend-wtnq.onrender.com/publicacion/usuario/${user.id}`
+                `https://geolocalizacion-backend-wtnq.onrender.com/publicacion/usuario/${user?.id}`
             );
             const data = await res.json();
             setPosts(data);
