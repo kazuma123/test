@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, TextInput, Button, Alert, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TextInput, Alert, TouchableOpacity } from 'react-native';
 import AppHeader from '../components/AppHeader';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useLocation } from '../lib/LocationContext';
@@ -43,31 +43,37 @@ export default function PostsScreen() {
             try {
                 const userString = await AsyncStorage.getItem('user');
                 if (userString) {
-                    console.log('Usuario cargado desde AsyncStorage:', JSON.parse(userString));
-                    setUser(JSON.parse(userString));
+                    const parsed = JSON.parse(userString);
+                    console.log("Usuario cargado:", parsed);
+                    setUser(parsed);
                 }
             } catch (error) {
-                console.log('Error cargando usuario:', error);
+                console.log("Error cargando usuario:", error);
             }
         };
 
         loadUser();
     }, []);
 
-    // Listar publicaciones
+    // Ejecutar fetchPosts SOLO cuando user exista
+    useEffect(() => {
+        if (user?.id) {
+            fetchPosts();
+        }
+    }, [user]);
+
     const fetchPosts = async () => {
+        console.log("Obteniendo publicaciones para usuario ID:", user?.id);
         try {
-            const res = await fetch('https://geolocalizacion-backend-wtnq.onrender.com/publicacion');
+            const res = await fetch(
+                `https://geolocalizacion-backend-wtnq.onrender.com/publicacion/usuario/${user.id}`
+            );
             const data = await res.json();
             setPosts(data);
         } catch (error) {
             console.error(error);
         }
     };
-
-    useEffect(() => {
-        fetchPosts();
-    }, []);
     const createPost = async () => {
         if (!titulo || !descripcion) {
             return Alert.alert('Error', 'Todos los campos son obligatorios');
@@ -287,6 +293,7 @@ const styles = StyleSheet.create({
         borderBottomColor: '#eee',
         paddingVertical: 10,
         alignItems: 'center',
+        paddingHorizontal: 8,
     },
     cell: {
         paddingHorizontal: 8,

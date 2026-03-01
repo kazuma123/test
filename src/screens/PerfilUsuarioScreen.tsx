@@ -29,7 +29,6 @@ export default function PerfilUsuarioScreen({ route, navigation }: Props) {
   const [email, setEmail] = useState(user.email || "");
   const [descripcion, setDescripcion] = useState(user.descripcion || "");
   const [fotoUrl, setFotoUrl] = useState(user.foto_url || "");
-  const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [foto, setFoto] = useState<any>(null);
 
@@ -67,13 +66,37 @@ export default function PerfilUsuarioScreen({ route, navigation }: Props) {
     try {
       setLoading(true);
 
-      await axios.put(
-        `https://geolocalizacion-backend-wtnq.onrender.com/usuarios/${user.id}`,
-        {
+      const formData = new FormData();
+
+      // JSON al backend en la KEY "body", igual que en el registro
+      formData.append(
+        "body",
+        JSON.stringify({
+          dni: user.dni,                // no editable pero requerido
           nombre,
           email,
+          password: user.password || "", // backend lo necesita
+          telefono: user.telefono || "",
+          rolId: user.roles?.[0]?.id || 1,
           descripcion,
-          foto_url: fotoUrl,
+        })
+      );
+
+      // Foto nueva si el usuario seleccionó
+      if (foto) {
+        formData.append("foto", foto);
+      }
+
+      console.log("FormData enviado:", formData);
+
+      await axios.put(
+        `https://geolocalizacion-backend-wtnq.onrender.com/usuarios/${user.id}`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+          timeout: 20000,
         }
       );
 
@@ -83,10 +106,11 @@ export default function PerfilUsuarioScreen({ route, navigation }: Props) {
       });
 
       navigation.goBack();
-    } catch (error) {
+    } catch (error: any) {
+      console.log(error);
       Toast.show({
         type: "error",
-        text1: "Error al actualizar",
+        text1: "Error al actualizar perfil",
       });
     } finally {
       setLoading(false);

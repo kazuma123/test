@@ -32,6 +32,8 @@ interface User {
   nombre: string;
   email: string;
   foto_url?: string;
+  descripcion: string;
+  telefono?: string;
   roles: Role[];
   rating?: number; // ⭐ reputación (ej: 4.7)
 }
@@ -153,15 +155,25 @@ export default function MapsDrawer() {
   const [user, setUser] = useState<User | null>(null);
   const [tienePerfil, setTienePerfil] = useState<boolean | null>(null);
 
-  useEffect(() => {
-    const loadUser = async () => {
+useEffect(() => {
+  const loadUser = async () => {
+    try {
       const storedUser = await AsyncStorage.getItem('user');
-      if (storedUser) {
-        setUser(JSON.parse(storedUser));
-      }
-    };
-    loadUser();
-  }, []);
+      if (!storedUser) return;
+      const parsed = JSON.parse(storedUser);
+      const res = await fetch(
+        `https://geolocalizacion-backend-wtnq.onrender.com/usuarios/${parsed.id}`
+      );
+      const fullUser = await res.json();
+      console.log("Usuario cargado:", fullUser);
+      setUser(fullUser);
+    } catch (error) {
+      console.log("Error cargando usuario:", error);
+    }
+  };
+
+  loadUser();
+}, []);
 
   useEffect(() => {
     const fetchPerfil = async () => {

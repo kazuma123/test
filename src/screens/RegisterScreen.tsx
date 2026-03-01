@@ -12,6 +12,7 @@ export default function RegisterScreen({ navigation }: any) {
   const [nombre, setNombre] = useState('');
   const [dni, setDni] = useState('');
   const [email, setEmail] = useState('');
+  const [telefono, setTelefono] = useState('');
   const [password, setPassword] = useState('');
   const [rol, setRol] = useState<1 | 2>(1);
   const [loading, setLoading] = useState(false);
@@ -21,6 +22,7 @@ export default function RegisterScreen({ navigation }: any) {
   const canSubmit =
     nombre.trim().length > 0 &&
     (dni.length === 8 || dni.length === 11) &&
+    (telefono.length === 9) &&
     /\S+@\S+\.\S+/.test(email) &&
     password.length >= 6;
 
@@ -42,6 +44,7 @@ export default function RegisterScreen({ navigation }: any) {
           nombre,
           email,
           descripcion,
+          telefono,
           dni,
           password,
           rolId: rol,
@@ -52,7 +55,7 @@ export default function RegisterScreen({ navigation }: any) {
       if (foto) {
         formData.append('foto', foto);
       }
-
+      console.log('FormData preparada:', formData);
       await axios.post(
         'https://geolocalizacion-backend-wtnq.onrender.com/usuarios',
         formData,
@@ -167,6 +170,20 @@ export default function RegisterScreen({ navigation }: any) {
             secureTextEntry
             autoComplete="password"
             textContentType="password"
+            style={styles.input}
+            returnKeyType="done"
+          />
+
+          {/* Password */}
+          <TextInput
+            value={telefono}
+            onChangeText={setTelefono}
+            placeholder="Celular"
+            placeholderTextColor="#9CA3AF"
+            keyboardType="phone-pad"
+            maxLength={9}
+            autoComplete="tel"
+            textContentType="telephoneNumber"
             style={styles.input}
             returnKeyType="done"
           />
