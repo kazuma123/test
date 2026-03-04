@@ -27,6 +27,7 @@ export default function PerfilUsuarioScreen({ route, navigation }: Props) {
   // Campos editables
   const [nombre, setNombre] = useState(user.nombre || "");
   const [email, setEmail] = useState(user.email || "");
+  const [telefono, setTelefono] = useState(user.telefono || "");
   const [descripcion, setDescripcion] = useState(user.descripcion || "");
   const [fotoUrl, setFotoUrl] = useState(user.foto_url || "");
   const [loading, setLoading] = useState(false);
@@ -77,7 +78,7 @@ export default function PerfilUsuarioScreen({ route, navigation }: Props) {
           email,
           password: user.password || "", // backend lo necesita
           telefono: user.telefono || "",
-          rolId: user.roles?.[0]?.id || 1,
+          // rolId: user.roles?.[0]?.id || 1,
           descripcion,
         })
       );
@@ -127,12 +128,12 @@ export default function PerfilUsuarioScreen({ route, navigation }: Props) {
         <Text style={styles.label}>DNI</Text>
         <TextInput value={user.dni} editable={false} style={styles.disabled} />
 
-        <Text style={styles.label}>Rol</Text>
+        {/* <Text style={styles.label}>Rol</Text>
         <TextInput
           value={user.roles?.[0]?.nombre || ""}
           editable={false}
           style={styles.disabled}
-        />
+        /> */}
 
         {/* CAMPOS EDITABLES */}
         <Text style={styles.label}>Nombre</Text>
@@ -148,6 +149,14 @@ export default function PerfilUsuarioScreen({ route, navigation }: Props) {
           onChangeText={setEmail}
           style={styles.input}
           keyboardType="email-address"
+        />
+
+        <Text style={styles.label}>Celular</Text>
+        <TextInput
+          value={telefono}
+          onChangeText={setTelefono}
+          style={styles.input}
+          keyboardType="phone-pad"
         />
 
         <Text style={styles.label}>Descripción</Text>
